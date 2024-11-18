@@ -1,0 +1,199 @@
+<!-- 
+  Copyright © [2023] [Dustin_Chen]. All rights reserved.
+  Author: Dustin_Chen
+  Email:  Dustin_Chen@compal.com or chuhpsdustin@gmail.com
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>parse_cu_excel</title>
+    <style>
+        body {
+            line-height: 1.2;
+            font-size: 14px;
+            font-family: Roboto, sans-serif;
+            white-space: nowrap; /* Prevent automatic line breaks */
+            overflow-x: auto; /* Enable horizontal scrollbar */
+        }
+
+        .gnb-stats {
+            color: black;
+            font-size: 12px;
+        }
+
+        .udp-dl-tx {
+            color: blue;
+            font-size: 12px;
+        }
+
+        .udp-ul-tx {
+            color: red;
+            font-size: 12px;
+        }
+
+        table {
+            width: 40%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        table, th, td {
+            border: 1px solid black;
+        }
+
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        /* Styles for file input and filename display */
+        #fileNameDisplay {
+            display: inline-block;
+            width: 100%; /* Ensure it takes the full width */
+            white-space: nowrap; /* Prevent line breaks */
+            overflow: hidden; /* Hide overflow */
+            text-overflow: ellipsis; /* Show ellipsis if filename is too long */
+            font-size: 14px;
+            color: #333;
+            padding-left: 10px;
+        }
+
+        #fileInput {
+            margin-top: 10px;
+            display: none; /* Hide the file input */
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.3/xlsx.full.min.js"></script> <!-- Add SheetJS library -->
+    <script>
+        // Function to handle file upload and parse the content
+        function handleFileUploadAndParse(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                alert("No file selected!");
+                return;
+            }
+
+            const reader = new FileReader();
+
+            // Display the filename in the fileNameDisplay span
+            document.getElementById("fileNameDisplay").textContent = file.name;
+
+            // When the file is read, parse its content
+            reader.onload = function(e) {
+                const content = e.target.result;
+                parseContentAndDownloadExcel(content);
+            };
+
+            // Read the file as text
+            reader.readAsText(file);
+        }
+
+        // Function to parse the file content and generate Excel
+        function parseContentAndDownloadExcel(inputText) {
+            const lines = inputText.split("\n");
+            const timestamps = [];
+            const udpUlTxValues = [];
+            const udpDlTxValues = [];
+
+            // Parse the input text for relevant data
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+
+                if (line.includes("GNB MGR STATISTICS")) {
+                    const timestamp = line.match(/\[(.*?)\]/)[1];  // Extract the timestamp
+                    timestamps.push(timestamp);
+                } else if (line.includes("UDP-UL-Tx")) {
+                    const udpUlTxValue = line.match(/\(.*?(\d+(\.\d+)?)\s*Mbps\)/); // Extract the Mbps value
+                    if (udpUlTxValue) {
+                        udpUlTxValues.push(parseFloat(udpUlTxValue[1]));
+                    }
+                } else if (line.includes("UDP-DL-Tx")) {
+                    const udpDlTxValue = line.match(/\(.*?(\d+(\.\d+)?)\s*Mbps\)/); // Extract the Mbps value
+                    if (udpDlTxValue) {
+                        udpDlTxValues.push(parseFloat(udpDlTxValue[1]));
+                    }
+                }
+            }
+
+            // Check if we have enough data to update the table
+            if (timestamps.length > 0 && udpUlTxValues.length > 0 && udpDlTxValues.length > 0) {
+                updateTable(timestamps, udpUlTxValues, udpDlTxValues);
+                exportToExcel(timestamps, udpUlTxValues, udpDlTxValues);
+            } else {
+                alert("Insufficient data to generate table.");
+            }
+        }
+
+        // Function to update the data table
+        function updateTable(timestamps, udpUlTxValues, udpDlTxValues) {
+            const table = document.getElementById("dataTable");
+            // Clear previous table rows
+            table.innerHTML = "<tr><th>Time</th><th>UL Throughput (Mbps)</th><th>DL Throughput (Mbps)</th></tr>";
+            
+            for (let i = 0; i < timestamps.length; i++) {
+                const row = table.insertRow();
+                const cell1 = row.insertCell(0);
+                const cell2 = row.insertCell(1);
+                const cell3 = row.insertCell(2);
+                cell1.textContent = timestamps[i];
+                cell2.textContent = udpUlTxValues[i] || '-';
+                cell3.textContent = udpDlTxValues[i] || '-';
+            }
+        }
+
+        // Function to export the data to Excel
+        function exportToExcel(timestamps, udpUlTxValues, udpDlTxValues) {
+            // Create a worksheet with the parsed data
+            const data = [["Time", "UL Throughput (Mbps)", "DL Throughput (Mbps)"]];
+            for (let i = 0; i < timestamps.length; i++) {
+                data.push([timestamps[i], udpUlTxValues[i] || '-', udpDlTxValues[i] || '-']);
+            }
+
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Throughput Data");
+
+            // Generate Excel file
+            XLSX.writeFile(wb, "throughput_data.xlsx");
+        }
+
+        // Function to trigger the file input click event
+        function triggerFileInput() {
+            document.getElementById('fileInput').click();
+        }
+    </script>
+</head>
+
+<body>
+    <h2>parse_cu_excel</h2>
+    
+    <p style="margin: 0;">Author: Dustin_Chen, email: <a href="mailto:Dustin_Chen@compal.com"
+            style="line-height: 1;">Dustin_Chen@compal.com</a> or <a href="mailto:chuhpsdustin@gmail.com"
+            style="line-height: 1;">chuhpsdustin@gmail.com</a></p>
+    
+    <div>
+        <br>
+        <label for="fileInput">● Please upload the "cu_stats_XXX.txt" file:</label><br>
+        <!-- Hidden file input -->
+        <input type="file" id="fileInput" accept=".txt" onchange="handleFileUploadAndParse(event)">
+        
+        <!-- Custom button to trigger file selection -->
+        <button onclick="triggerFileInput()">Select File & Parse & Download Excel</button>
+        
+        <br>
+        <span id="fileNameDisplay">No file selected</span> <!-- Display filename here -->
+    </div>
+
+    <h4>Output Data Table:</h4>
+    <table id="dataTable"></table>
+</body>
+
+</html>
